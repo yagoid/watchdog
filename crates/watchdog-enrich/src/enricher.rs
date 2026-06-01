@@ -22,6 +22,7 @@ const SYSTEM_PID: u32 = 4;
 pub struct Enricher {
     table: Arc<ProcessTable>,
     sockets: SocketTable,
+    own_pid: u32,
 }
 
 impl Enricher {
@@ -32,6 +33,7 @@ impl Enricher {
             Self {
                 table,
                 sockets: SocketTable::new(),
+                own_pid: std::process::id(),
             },
             snapshot_count,
         )
@@ -44,6 +46,14 @@ impl Enricher {
     pub fn run(self, rx_raw: Receiver<RawEvent>, tx_enriched: Sender<EnrichedEvent>) {
         while let Ok(raw) = rx_raw.recv() {
             let enriched = self.enrich(raw);
+            // Don't forward our own events. File I/O is dropped earlier at
+            // the provider callback; this also catches network connections,
+            // which arrive as PID 4 and only resolve to our real PID here,
+            // after the socket-table lookup in `enrich`. The process table
+            // was still updated inside `enrich`, so dropping is safe.
+            if enriched.raw.pid == self.own_pid {
+                continue;
+            }
             if tx_enriched.send(enriched).is_err() {
                 break;
             }
@@ -52,8 +62,14 @@ impl Enricher {
 
     fn enrich(&self, mut raw: RawEvent) -> EnrichedEvent {
         // Path canonicalization on payloads that carry NT paths.
-        if let EventPayload::FileCreate { path } = &mut raw.payload {
-            *path = device_map::canonicalize(path).to_string_lossy().into_owned();
+        match &mut raw.payload {
+            EventPayload::FileCreate { path } | EventPayload::FileWrite { path } => {
+                *path = device_map::canonicalize(path).to_string_lossy().into_owned();
+            }
+            EventPayload::ImageLoad { image, .. } => {
+                *image = device_map::canonicalize(image).to_string_lossy().into_owned();
+            }
+            _ => {}
         }
 
         // Socket→PID resolution: most network connects are attributed

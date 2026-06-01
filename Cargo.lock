@@ -1230,6 +1230,7 @@ name = "watchdog-detect"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "chrono",
  "crossbeam-channel",
  "serde",
  "watchdog-core",

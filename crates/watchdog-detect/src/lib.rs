@@ -10,6 +10,7 @@
 mod baseline;
 mod detector;
 mod detectors;
+mod paths;
 mod scorer;
 mod signature;
 

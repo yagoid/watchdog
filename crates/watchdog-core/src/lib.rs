@@ -43,6 +43,17 @@ pub enum EventPayload {
     FileCreate {
         path: String,
     },
+    /// First write to an open file handle, from Microsoft-Windows-Kernel-File
+    /// `Write` (event 16). The Write event carries only a `FileObject`
+    /// handle, not a name, so the path is resolved by the provider against
+    /// the `FileObject`→name map it builds from `Create` events, then
+    /// canonicalized to DOS form by the enrichment stage. Emitted once per
+    /// handle (first write) so a chunked write doesn't flood the pipeline.
+    /// This is the *write*-intent signal `EntropyBurst` needs — `Create`
+    /// alone can't tell a reader (indexer, AV) from a writer.
+    FileWrite {
+        path: String,
+    },
     /// `SetValueKey` from Microsoft-Windows-Kernel-Registry. NT form
     /// (`\REGISTRY\MACHINE\…` or `\REGISTRY\USER\<sid>\…`).
     RegistrySetValue {
@@ -238,6 +249,10 @@ fn payload_json(p: &EventPayload) -> Value {
         }
         EventPayload::FileCreate { path } => {
             m.insert("kind".into(), "FileCreate".into());
+            m.insert("path".into(), path.clone().into());
+        }
+        EventPayload::FileWrite { path } => {
+            m.insert("kind".into(), "FileWrite".into());
             m.insert("path".into(), path.clone().into());
         }
         EventPayload::RegistrySetValue { key_name, value_name } => {

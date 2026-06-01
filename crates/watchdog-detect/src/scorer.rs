@@ -7,9 +7,11 @@ use watchdog_enrich::ProcessTable;
 
 use crate::baseline::Baseline;
 use crate::detector::Detector;
+use crate::baseline::hour_and_day;
 use crate::detectors::{
-    DnsAnomaly, LolbinSpawn, NewNetworkEgress, RapidFileTraversal, RegistryPersistence,
-    UnsignedFromUserPath, UnusualParentChild, UsbExfilHint,
+    DnsAnomaly, EntropyBurst, ImageLoadFromUnusualPath, LolbinSpawn, NewNetworkEgress,
+    OffHoursActivity, ProcessImpersonation, RapidFileTraversal, RareDestination,
+    RegistryPersistence, UnsignedFromUserPath, UnusualParentChild, UsbExfilHint,
 };
 use crate::signature::SignatureCache;
 
@@ -32,10 +34,15 @@ impl Scorer {
         let detectors: Vec<Box<dyn Detector>> = vec![
             Box::new(LolbinSpawn),
             Box::new(UnusualParentChild),
+            Box::new(ProcessImpersonation),
             Box::new(RegistryPersistence),
             Box::new(RapidFileTraversal::with_baseline(Arc::clone(&baseline))),
-            Box::new(UnsignedFromUserPath::with_cache(sig_cache)),
+            Box::new(EntropyBurst::new()),
+            Box::new(UnsignedFromUserPath::with_cache(Arc::clone(&sig_cache))),
+            Box::new(ImageLoadFromUnusualPath::with_cache(sig_cache)),
             Box::new(NewNetworkEgress::with_baseline(Arc::clone(&baseline))),
+            Box::new(RareDestination::with_baseline(Arc::clone(&baseline))),
+            Box::new(OffHoursActivity::with_baseline(Arc::clone(&baseline))),
             Box::new(DnsAnomaly),
             Box::new(UsbExfilHint::new()),
         ];
@@ -70,6 +77,10 @@ impl Scorer {
         while let Ok(enriched) = rx.recv() {
             self.observe(&enriched);
             let scored = self.score(enriched);
+            // Record host activity *after* scoring so the current event
+            // can't bias the off-hours verdict on its own hour. Runs in
+            // learn-only mode too (it's outside the detector loop).
+            self.observe_host(&scored.enriched);
             if tx.send(scored).is_err() {
                 break;
             }
@@ -89,6 +100,20 @@ impl Scorer {
         // FileCreate observations are folded into RapidFileTraversal's
         // window-completion path so the baseline sees window totals,
         // not individual file events.
+    }
+
+    /// Feed the host's hour-of-day histogram. Only interactive
+    /// (session != 0) process starts count — background services run
+    /// around the clock and would flatten the profile. Network/destination
+    /// learning is done inside RareDestination's evaluate (so it sees
+    /// pre-event state); host activity is safe to record post-score.
+    fn observe_host(&self, ev: &EnrichedEvent) {
+        if let EventPayload::ProcessStart { session_id, .. } = &ev.raw.payload {
+            if *session_id != 0 {
+                let (hour, day) = hour_and_day(ev.raw.ts);
+                self.baseline.observe_host_activity(hour, day);
+            }
+        }
     }
 
     fn score(&self, enriched: EnrichedEvent) -> ScoredEvent {

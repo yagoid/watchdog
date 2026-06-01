@@ -19,22 +19,8 @@ use watchdog_core::{EnrichedEvent, EventPayload, ScoreReason};
 use watchdog_enrich::ProcessTable;
 
 use crate::detector::Detector;
+use crate::paths::is_user_writable;
 use crate::signature::{SignatureCache, SignatureStatus};
-
-/// Lowercase substrings that mark a "user-writable" path. The matcher
-/// lowercases its input. We deliberately include `:` (alternate data
-/// stream marker) so any ADS-loaded binary is flagged.
-const USER_PATH_MARKERS: &[&str] = &[
-    r"\appdata\local\temp\",
-    r"\appdata\roaming\",
-    r"\downloads\",
-    r"\desktop\",
-    r"\users\public\downloads\",
-    r"\users\public\desktop\",
-    r"\$recycle.bin\",
-    r"\temp\",
-    r"\users\public\documents\",
-];
 
 pub struct UnsignedFromUserPath {
     cache: Arc<SignatureCache>,
@@ -55,12 +41,7 @@ impl Detector for UnsignedFromUserPath {
         }
         let proc = ev.process.as_ref()?;
 
-        let path_str = proc.image_path.to_string_lossy();
-        let path_lower = path_str.to_ascii_lowercase();
-
-        let matches_user_path = USER_PATH_MARKERS.iter().any(|m| path_lower.contains(m))
-            || has_alternate_data_stream(&path_lower);
-        if !matches_user_path {
+        if !is_user_writable(&proc.image_path.to_string_lossy()) {
             return None;
         }
 
@@ -88,13 +69,4 @@ impl Detector for UnsignedFromUserPath {
             SignatureStatus::Signed | SignatureStatus::Unknown => None,
         }
     }
-}
-
-/// `C:\path\file.exe:Zone.Identifier` is the Win32 syntax for an
-/// alternate data stream. Anything after a colon following a path-like
-/// substring counts as ADS. We do the cheap check: look for a colon at
-/// position > 2 (past `C:\`).
-fn has_alternate_data_stream(path_lower: &str) -> bool {
-    // Skip drive-letter colon (always at index 1, e.g. "c:")
-    path_lower.match_indices(':').any(|(i, _)| i > 2)
 }
