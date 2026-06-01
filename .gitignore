@@ -1,0 +1,6 @@
+/target
+# Cargo.lock IS committed: this is an application, not a library.
+
+# Local AI tooling / skills: reference local filesystem paths and internal
+# dev notes, not meant for the public repo. Remove this line to publish them.
+/.claude/

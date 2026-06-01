@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Informational only: the tree carries deliberate style lints, so clippy
+      # is not gated with -D warnings. It still surfaces new issues in the log.
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features
+
+      - name: Build (release)
+        run: cargo build --release --workspace
+
+      # The `watchdog` bin embeds a requireAdministrator manifest, so its test
+      # harness can't launch on a non-elevated runner (os error 740). The bin is
+      # pure wiring; the testable logic lives in the member crates.
+      - name: Test
+        run: cargo test --workspace --exclude watchdog

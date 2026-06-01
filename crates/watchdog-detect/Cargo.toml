@@ -1,0 +1,17 @@
+[package]
+name = "watchdog-detect"
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+rust-version.workspace = true
+description = "Detection stage: heuristic detectors + probabilistic scorer + learned baseline."
+
+[dependencies]
+watchdog-core     = { workspace = true }
+watchdog-enrich   = { workspace = true }
+crossbeam-channel = { workspace = true }
+serde             = { workspace = true }
+bincode           = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }

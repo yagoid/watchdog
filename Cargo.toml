@@ -1,0 +1,83 @@
+[package]
+name = "watchdog"
+version = "0.1.0"
+edition = "2021"
+description = "Real-time behavioral system monitor for Windows (no signatures, no external threat feeds)"
+license = "MIT OR Apache-2.0"
+rust-version = "1.75"
+
+[workspace]
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.75"
+
+[workspace.dependencies]
+watchdog-core    = { path = "crates/watchdog-core"   }
+watchdog-etw     = { path = "crates/watchdog-etw"    }
+watchdog-enrich  = { path = "crates/watchdog-enrich" }
+watchdog-detect  = { path = "crates/watchdog-detect" }
+watchdog-tui     = { path = "crates/watchdog-tui"    }
+
+anyhow            = "1"
+crossbeam-channel = "0.5"
+ferrisetw         = "1.2"
+env_logger        = "0.11"
+ratatui           = "0.29"
+crossterm         = "0.28"
+chrono            = { version = "0.4", default-features = false, features = ["clock", "std"] }
+serde             = { version = "1", features = ["derive"] }
+serde_json        = "1"
+bincode           = "1.3"
+regex             = "1"
+
+# Match the version ferrisetw pulls in to avoid duplicating the windows crate.
+windows = { version = "0.57", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+    "Win32_Storage_FileSystem",
+    "Win32_Security_WinTrust",
+    "Win32_Security_Cryptography",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_NetworkManagement_WiFi",
+    "Win32_Networking_WinSock",
+] }
+
+[dependencies]
+watchdog-core     = { workspace = true }
+watchdog-etw      = { workspace = true }
+watchdog-enrich   = { workspace = true }
+watchdog-detect   = { workspace = true }
+watchdog-tui      = { workspace = true }
+anyhow            = { workspace = true }
+crossbeam-channel = { workspace = true }
+env_logger        = { workspace = true }
+serde_json        = { workspace = true }
+chrono            = { workspace = true }
+
+# Service mode: SCM lifecycle via windows-service (wraps the dispatcher /
+# control-handler boilerplate), plus raw windows-rs for the Event Log writer,
+# DACL hardening and the event-source registry key.
+windows-service   = "0.7"
+windows = { workspace = true, features = [
+    "Win32_System_EventLog",
+    "Win32_System_Registry",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+] }
+
+[build-dependencies]
+embed-resource = "3"
+
+[profile.release]
+lto           = "thin"
+codegen-units = 1
+strip         = "symbols"
+panic         = "abort"

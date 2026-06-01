@@ -1,0 +1,22 @@
+[package]
+name = "watchdog-tui"
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+rust-version.workspace = true
+description = "Terminal UI for the watchdog event feed."
+
+[dependencies]
+watchdog-core     = { workspace = true }
+watchdog-enrich   = { workspace = true }
+watchdog-detect   = { workspace = true }
+anyhow            = { workspace = true }
+crossbeam-channel = { workspace = true }
+ratatui           = { workspace = true }
+crossterm         = { workspace = true }
+chrono            = { workspace = true }
+serde_json        = { workspace = true }
+regex             = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }

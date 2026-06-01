@@ -1,0 +1,15 @@
+[package]
+name = "watchdog-enrich"
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+rust-version.workspace = true
+description = "Enrichment stage: live process table, path canonicalization, cmdline resolution."
+
+[dependencies]
+watchdog-core     = { workspace = true }
+anyhow            = { workspace = true }
+crossbeam-channel = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }
