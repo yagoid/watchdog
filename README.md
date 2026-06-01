@@ -48,6 +48,17 @@ Real-time behavioural security monitor for Windows. It watches your machine thro
 
 ## Install
 
+### Scoop (terminal)
+
+If you use [Scoop](https://scoop.sh/):
+
+```powershell
+scoop bucket add watchdog https://github.com/yagoid/watchdog
+scoop install watchdog
+```
+
+`scoop update watchdog` later pulls new versions. Because Watchdog needs elevation and the Scoop shim doesn't auto-elevate, run it from an **elevated** terminal (`watchdog`) or launch the **Watchdog** Start Menu shortcut Scoop creates (which prompts for UAC).
+
 ### Download a release
 
 Grab `watchdog.exe` from the [Releases](../../releases) page and run it from an elevated terminal (or just double-click and accept the UAC prompt).

@@ -1,0 +1,30 @@
+{
+    "version": "0.1.0",
+    "description": "Real-time behavioural security monitor for Windows — ETW-based, no signatures, no external threat feeds.",
+    "homepage": "https://github.com/yagoid/watchdog",
+    "license": "MIT OR Apache-2.0",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/yagoid/watchdog/releases/download/v0.1.0/watchdog-v0.1.0-x86_64-pc-windows-msvc.zip",
+            "hash": "0f273fcd5fed44f09ce83b2365a6edb8e9675987c6ee2f6cf9ce3324fcf598fe"
+        }
+    },
+    "bin": "watchdog.exe",
+    "shortcuts": [
+        ["watchdog.exe", "Watchdog"]
+    ],
+    "notes": [
+        "Watchdog requires Administrator (it opens ETW real-time sessions).",
+        "Run it from an ELEVATED terminal: `watchdog`. A normal terminal fails with 'requires elevation' because the Scoop shim does not auto-elevate.",
+        "Alternatively launch the 'Watchdog' Start Menu shortcut and accept the UAC prompt.",
+        "Unsigned binary: SmartScreen may warn on first run (More info -> Run anyway)."
+    ],
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/yagoid/watchdog/releases/download/v$version/watchdog-v$version-x86_64-pc-windows-msvc.zip"
+            }
+        }
+    }
+}
