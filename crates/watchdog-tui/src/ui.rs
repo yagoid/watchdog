@@ -1555,6 +1555,10 @@ fn feed_line(ev: &ScoredEvent) -> Line<'static> {
             let owner = ev.enriched.process.as_ref().map(|p| p.image_name.clone()).unwrap_or_else(|| "?".into());
             ("FILE", YELLOW, format!("{owner}  ▸  {}", basename(path)))
         }
+        EventPayload::FileWrite { path } => {
+            let owner = ev.enriched.process.as_ref().map(|p| p.image_name.clone()).unwrap_or_else(|| "?".into());
+            ("FILE", YELLOW, format!("{owner}  ✎  {}", basename(path)))
+        }
         EventPayload::RegistrySetValue { key_name, value_name } => {
             let owner = ev.enriched.process.as_ref().map(|p| p.image_name.clone()).unwrap_or_else(|| "?".into());
             let key_tail = basename(key_name);
@@ -1640,6 +1644,7 @@ fn build_details(ev: &ScoredEvent, width: usize) -> Vec<Line<'static>> {
         EventPayload::ProcessStop       { .. } => ("PROCESS STOP",     DIM),
         EventPayload::ImageLoad         { .. } => ("IMAGE LOAD",       CYAN),
         EventPayload::FileCreate        { .. } => ("FILE CREATE",      YELLOW),
+        EventPayload::FileWrite         { .. } => ("FILE WRITE",       YELLOW),
         EventPayload::RegistrySetValue  { .. } => ("REGISTRY SETVAL",  MAGENTA),
         EventPayload::NetworkConnect    { .. } => ("NETWORK CONNECT",  ORANGE),
         EventPayload::DnsQuery          { .. } => ("DNS QUERY",        CYAN),
@@ -1681,7 +1686,7 @@ fn build_details(ev: &ScoredEvent, width: usize) -> Vec<Line<'static>> {
         EventPayload::ProcessStop { exit_code, .. } => {
             out.push(kv("Exit", Span::styled(format!("{exit_code:#x}"),   Style::new().fg(YELLOW))));
         }
-        EventPayload::FileCreate { path } => {
+        EventPayload::FileCreate { path } | EventPayload::FileWrite { path } => {
             out.push(kv("Path", Span::styled(path.clone(),                Style::new().fg(FG))));
         }
         EventPayload::RegistrySetValue { key_name, value_name } => {

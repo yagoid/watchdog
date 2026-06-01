@@ -1,16 +1,26 @@
 mod dns_anomaly;
+mod entropy_burst;
+mod image_load_from_unusual_path;
 mod lolbin_spawn;
 mod new_network_egress;
+mod off_hours_activity;
+mod process_impersonation;
 mod rapid_file_traversal;
+mod rare_destination;
 mod registry_persistence;
 mod unsigned_from_user_path;
 mod unusual_parent_child;
 mod usb_exfil_hint;
 
 pub use dns_anomaly::DnsAnomaly;
+pub use entropy_burst::EntropyBurst;
+pub use image_load_from_unusual_path::ImageLoadFromUnusualPath;
 pub use lolbin_spawn::LolbinSpawn;
 pub use new_network_egress::NewNetworkEgress;
+pub use off_hours_activity::OffHoursActivity;
+pub use process_impersonation::ProcessImpersonation;
 pub use rapid_file_traversal::RapidFileTraversal;
+pub use rare_destination::RareDestination;
 pub use registry_persistence::RegistryPersistence;
 pub use unsigned_from_user_path::UnsignedFromUserPath;
 pub use unusual_parent_child::UnusualParentChild;

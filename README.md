@@ -24,10 +24,15 @@ Real-time behavioural security monitor for Windows. It watches your machine thro
 | `UnusualParentChild` | Rarely-benign chains: Office → cmd/powershell, browser → shell, lsass → anything |
 | `RegistryPersistence` | Writes to known autostart locations (Run keys, IFEO, Winlogon, AppInit_DLLs, service ImagePath…) |
 | `RapidFileTraversal` | A process touching ≥25 directories in 10s — ransomware / bulk exfiltration fingerprint (baseline-aware) |
+| `EntropyBurst` | A process writing a burst of high-entropy (encrypted-looking) files — ransomware encryption in the act; complements RapidFileTraversal |
 | `UnsignedFromUserPath` | Unsigned binary running from `%TEMP%`, `%APPDATA%`, Downloads, Desktop, Recycle Bin or an ADS |
 | `NewNetworkEgress` | A previously-silent program making its first-ever outbound connection |
 | `DnsAnomaly` | High-entropy / long / abused-TLD domains (DGA-style), multi-evidence |
 | `UsbExfilHint` | A removable drive appears, then a process bulk-copies files to it within 5 minutes |
+| `ProcessImpersonation` | A critical system image (svchost, lsass, services…) running outside System32, or svchost not launched by services.exe |
+| `ImageLoadFromUnusualPath` | An unsigned/untrusted module (DLL) loaded from a user-writable path — DLL sideloading / search-order hijacking |
+| `RareDestination` | A mature, focused program connecting to a network prefix it has never used before — C2-callback signal (chatty clients auto-excluded) |
+| `OffHoursActivity` | An interactive process launched during an hour this host is normally idle — amplifies other signals (learned hour-of-day profile) |
 
 ### Views (TUI)
 

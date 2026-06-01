@@ -57,6 +57,14 @@ fn handle(
             let image: String    = parser.try_parse("ImageName").unwrap_or_default();
             let base: u64        = parser.try_parse("ImageBase").unwrap_or(0);
             let size: u64        = parser.try_parse("ImageSize").unwrap_or(0);
+            // Image-load is extremely high volume (every DLL of every
+            // process). Drop the overwhelming majority that load from
+            // system locations before they enter the pipeline; what's
+            // left — modules loaded from elsewhere — is exactly what
+            // ImageLoadFromUnusualPath cares about.
+            if image.is_empty() || is_system_image_path(&image) {
+                return;
+            }
             (pid, EventPayload::ImageLoad { image, base, size })
         }
         _ => return,
@@ -76,4 +84,15 @@ fn handle(
     if tx.try_send(ev).is_err() {
         dropped.fetch_add(1, Ordering::Relaxed);
     }
+}
+
+/// Drop image loads from system locations — the bulk of all loads and not
+/// security-relevant for sideloading detection. The path here is the
+/// native form ETW delivers (`\Device\HarddiskVolumeN\…` or `\SystemRoot\`);
+/// substring matching is enough, no need to canonicalize on the hot path.
+fn is_system_image_path(image: &str) -> bool {
+    let lower = image.to_ascii_lowercase();
+    lower.contains(r"\windows\")
+        || lower.contains(r"\program files\")
+        || lower.contains(r"\program files (x86)\")
 }

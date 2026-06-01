@@ -19,13 +19,32 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
+use chrono::{DateTime, Datelike, Local, Timelike};
 use serde::{Deserialize, Serialize};
 
 /// Minimum samples before a profile is trusted enough to suppress its
 /// detector alerts.
 pub const LEARN_SAMPLES: u64 = 5;
+
+/// Once an image's distinct-destination set passes this size we treat it
+/// as a chatty client (browser, updater, CDN consumer) we can't usefully
+/// baseline, stop tracking, and never raise `RareDestination` for it.
+pub const DEST_PREFIX_CAP: usize = 32;
+
+/// Per-day multiplicative decay applied to the host activity histogram so
+/// it tracks a moving notion of "usual hours" (~23-day half-life).
+const HOST_DECAY_PER_DAY: f64 = 0.97;
+/// Distinct days of observation before the host profile will judge an
+/// hour as off-hours.
+const HOST_MIN_DAYS: u64 = 5;
+/// Minimum total (decayed) activity before judging — guards against a
+/// histogram with too few samples to be meaningful.
+const HOST_MIN_TOTAL: f64 = 100.0;
+/// An hour is "off-hours" when its share of activity is below this
+/// fraction of a flat-average hour (total / 24).
+const OFF_HOUR_FRACTION: f64 = 0.20;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct ImageProfile {
@@ -40,11 +59,43 @@ pub struct ImageProfile {
     /// observed connection of an otherwise-mature image.
     #[serde(default)]
     pub network_egress_observed: bool,
+    /// Distinct remote destination prefixes (/24 v4, /48 v6) this image
+    /// has been seen contacting. Used by `RareDestination`. Capped at
+    /// `DEST_PREFIX_CAP`; see `dest_chatty`.
+    #[serde(default)]
+    pub dest_prefixes: HashSet<String>,
+    /// Set once the destination set overflowed the cap: the image talks
+    /// to too many endpoints to baseline, so we stop tracking it.
+    #[serde(default)]
+    pub dest_chatty: bool,
+}
+
+/// Machine-wide activity profile: a decayed histogram of process-start
+/// activity by hour-of-day (local time), feeding `OffHoursActivity`.
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct HostProfile {
+    hourly: [f64; 24],
+    total: f64,
+    days_observed: u64,
+    /// Proleptic-Gregorian day number of the last observation, for
+    /// applying per-day decay. Zero means "never observed" (the real day
+    /// number for the current era is ~738000, so zero is a safe sentinel).
+    last_day: i64,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct BaselineData {
     profiles: HashMap<String, ImageProfile>,
+    #[serde(default)]
+    host: HostProfile,
+}
+
+/// Local hour-of-day `[0,24)` and proleptic-Gregorian day number for an
+/// event timestamp. Shared by the scorer (recording) and the
+/// `OffHoursActivity` detector (judging).
+pub(crate) fn hour_and_day(ts: SystemTime) -> (usize, i64) {
+    let dt: DateTime<Local> = ts.into();
+    (dt.hour() as usize, dt.num_days_from_ce() as i64)
 }
 
 pub struct Baseline {
@@ -156,6 +207,76 @@ impl Baseline {
         was
     }
 
+    /// Record a destination prefix for an image and report whether it is
+    /// a genuinely *rare* one worth alerting on. "Rare" means: the image
+    /// is mature, not chatty, already has an established destination
+    /// history, and this prefix is new to it. The image's very first
+    /// destination is `NewNetworkEgress`'s job, not ours, so a first-ever
+    /// prefix returns `false`.
+    pub fn observe_destination(&self, image: &str, prefix: &str) -> bool {
+        if self.excluded.contains(image) {
+            return false;
+        }
+        let mut data = self.data.lock().unwrap();
+        let profile = data.profiles.entry(image.to_string()).or_default();
+        if profile.dest_chatty {
+            return false;
+        }
+        let mature = profile.samples >= LEARN_SAMPLES;
+        let had_history = !profile.dest_prefixes.is_empty();
+        let is_new = profile.dest_prefixes.insert(prefix.to_string());
+        if profile.dest_prefixes.len() > DEST_PREFIX_CAP {
+            // Too many endpoints to baseline: stop tracking and free the set.
+            profile.dest_chatty = true;
+            profile.dest_prefixes.clear();
+            return false;
+        }
+        is_new && had_history && mature
+    }
+
+    /// Fold one unit of interactive activity into the host's hour-of-day
+    /// histogram, applying per-day decay when the calendar day advances.
+    pub fn observe_host_activity(&self, hour: usize, day: i64) {
+        if hour >= 24 {
+            return;
+        }
+        let mut data = self.data.lock().unwrap();
+        let h = &mut data.host;
+        if h.last_day == 0 {
+            h.last_day = day;
+            h.days_observed = 1;
+        } else if day > h.last_day {
+            // Decay every bucket once per elapsed day. Cap the exponent so
+            // a long idle gap can't spin (and can't underflow to nonsense).
+            let elapsed = (day - h.last_day).clamp(1, 365) as i32;
+            let factor = HOST_DECAY_PER_DAY.powi(elapsed);
+            for b in h.hourly.iter_mut() {
+                *b *= factor;
+            }
+            h.total *= factor;
+            h.last_day = day;
+            h.days_observed += 1;
+        }
+        h.hourly[hour] += 1.0;
+        h.total += 1.0;
+    }
+
+    /// Whether `hour` is a historically-quiet hour for this host. `None`
+    /// while the profile is too young to judge — callers must treat that
+    /// as "no opinion", never as "off-hours".
+    pub fn is_off_hour(&self, hour: usize) -> Option<bool> {
+        if hour >= 24 {
+            return None;
+        }
+        let data = self.data.lock().unwrap();
+        let h = &data.host;
+        if h.days_observed < HOST_MIN_DAYS || h.total < HOST_MIN_TOTAL {
+            return None;
+        }
+        let avg = h.total / 24.0;
+        Some(h.hourly[hour] < avg * OFF_HOUR_FRACTION)
+    }
+
     /// Number of distinct images seen and number of them mature, for
     /// the UI's learning-progress indicator.
     pub fn stats(&self) -> (usize, usize) {
@@ -220,4 +341,62 @@ fn lolbin_set() -> HashSet<String> {
 fn baseline_path() -> Option<PathBuf> {
     let pd = std::env::var("ProgramData").ok()?;
     Some(PathBuf::from(pd).join("Watchdog").join("baseline.bin"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn off_hour_undecided_until_mature() {
+        let b = Baseline::new();
+        // A single busy day: not enough distinct days to judge.
+        for hour in 9..18 {
+            for _ in 0..20 {
+                b.observe_host_activity(hour, 738000);
+            }
+        }
+        assert_eq!(b.is_off_hour(3), None);
+        assert_eq!(b.is_off_hour(13), None);
+    }
+
+    #[test]
+    fn learns_daytime_shape_and_flags_night() {
+        let b = Baseline::new();
+        // Six distinct days of activity concentrated in 09:00–17:59.
+        for day in 0..6 {
+            for hour in 9..18 {
+                for _ in 0..3 {
+                    b.observe_host_activity(hour, 738000 + day);
+                }
+            }
+        }
+        // Mature now (>=5 days, >=100 total).
+        assert_eq!(b.is_off_hour(3), Some(true), "03:00 is never active -> off-hours");
+        assert_eq!(b.is_off_hour(13), Some(false), "13:00 is a usual active hour");
+    }
+
+    #[test]
+    fn chatty_image_stops_tracking_destinations() {
+        let b = Baseline::new();
+        for _ in 0..LEARN_SAMPLES {
+            b.observe_process_start("svc.exe", Some("services.exe"));
+        }
+        // First destination establishes history (no alert).
+        assert!(!b.observe_destination("svc.exe", "10.0.0.0/24"));
+        // Push past the cap with distinct prefixes.
+        for i in 0..=DEST_PREFIX_CAP as u32 {
+            b.observe_destination("svc.exe", &format!("203.0.{i}.0/24"));
+        }
+        // Now marked chatty: even a brand-new prefix no longer fires.
+        assert!(!b.observe_destination("svc.exe", "198.51.100.0/24"));
+    }
+
+    #[test]
+    fn lolbin_destinations_never_alert() {
+        let b = Baseline::new();
+        // powershell is excluded; even with history + a new prefix, silent.
+        assert!(!b.observe_destination("powershell.exe", "10.0.0.0/24"));
+        assert!(!b.observe_destination("powershell.exe", "203.0.113.0/24"));
+    }
 }
