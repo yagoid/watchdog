@@ -133,6 +133,9 @@ pub struct App {
     pub tcp_scroll: u16,
     /// Vertical scroll offset for the INTERFACES panel.
     pub interfaces_scroll: u16,
+    /// Vertical scroll offset for the INCIDENTS panel in the Summary
+    /// view. Clamped against content height at render time.
+    pub incidents_scroll: u16,
 
     /// Rolling counters about network behaviour since session start
     /// — powers the NETWORK FOOTPRINT panel in the Summary view.
@@ -209,6 +212,7 @@ impl App {
             host_detail_scroll: 0,
             tcp_scroll: 0,
             interfaces_scroll: 0,
+            incidents_scroll: 0,
             footprint: NetworkFootprint::new(),
             dns_cache: DnsCache::new(),
             wifi_snapshot: None,
@@ -392,6 +396,16 @@ impl App {
 
         // View-specific keys.
         match (self.view, code) {
+            // ---- Summary view ----
+            // ↑/↓ scroll the INCIDENTS panel. Clamped against content
+            // height at render time (we don't know it here).
+            (ViewMode::Summary, KeyCode::Down) | (ViewMode::Summary, KeyCode::Char('j')) => {
+                self.incidents_scroll = self.incidents_scroll.saturating_add(1);
+            }
+            (ViewMode::Summary, KeyCode::Up) | (ViewMode::Summary, KeyCode::Char('k')) => {
+                self.incidents_scroll = self.incidents_scroll.saturating_sub(1);
+            }
+
             // ---- Offensive view ----
             (ViewMode::Offensive, KeyCode::Down) | (ViewMode::Offensive, KeyCode::Char('j')) => {
                 self.wifi_move(1);
