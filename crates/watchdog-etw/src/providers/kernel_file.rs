@@ -41,6 +41,10 @@ const EVENT_CREATE: u16 = 12;
 const EVENT_WRITE: u16 = 16;
 const EVENT_CLOSE: u16 = 14;
 
+/// The System process. The kernel attributes cache/paging file I/O to it,
+/// which is never an actionable user-mode signal.
+const SYSTEM_PID: u32 = 4;
+
 /// Safety valve: if `Close` events are somehow missed and the map grows
 /// without bound, clear it. Resolution misses until it repopulates are
 /// preferable to unbounded memory.
@@ -85,11 +89,16 @@ fn handle(
         return;
     }
 
-    // Never observe our own file I/O. Watchdog opens files to inspect them
-    // (entropy sampling, signature checks); each open emits an event for our
-    // own PID, which would feed straight back into the detectors that opened
-    // it — an infinite amplification loop. Drop at the source.
-    if record.process_id() == own_pid() {
+    let pid = record.process_id();
+    // Drop two sources of pure noise at the source, before the channel:
+    //   * Our own PID — watchdog opens files to inspect them (entropy
+    //     sampling, signature checks); each open emits an event for our PID
+    //     that would feed back into the detectors that opened it (infinite
+    //     amplification loop).
+    //   * The System process (PID 4) — kernel cache/paging I/O attributed to
+    //     it spams RapidFileTraversal/EntropyBurst with CRITs under heavy
+    //     load (e.g. a compile) and can never mature in the baseline.
+    if pid == own_pid() || pid == SYSTEM_PID {
         return;
     }
 
@@ -114,7 +123,7 @@ fn handle(
             }
             // Microsoft-Windows-Kernel-File events don't carry a ProcessID
             // field — the originating PID lives in the EVENT_HEADER metadata.
-            emit(tx, dropped, record.process_id(), EventPayload::FileCreate { path });
+            emit(tx, dropped, pid, EventPayload::FileCreate { path });
         }
         EVENT_WRITE => {
             let file_object: u64 = parser.try_parse("FileObject").unwrap_or(0);
@@ -135,7 +144,7 @@ fn handle(
                 }
             };
             if let Some(path) = path {
-                emit(tx, dropped, record.process_id(), EventPayload::FileWrite { path });
+                emit(tx, dropped, pid, EventPayload::FileWrite { path });
             }
         }
         EVENT_CLOSE => {

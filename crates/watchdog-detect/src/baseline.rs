@@ -54,6 +54,12 @@ pub struct ImageProfile {
     /// Peak distinct-directories-in-window count we've ever observed
     /// for this image (`RapidFileTraversal` window).
     pub max_file_traversal_in_window: usize,
+    /// Number of `RapidFileTraversal` windows we've completed for this
+    /// image. Distinct from `samples` (which also counts process spawns):
+    /// only this gates traversal-ceiling trust, so an image can't be waved
+    /// through on the strength of having merely started a few times.
+    #[serde(default)]
+    pub traversal_windows: u64,
     /// `true` once we've ever seen this image make an outbound TCP
     /// connection. `NewNetworkEgress` uses it to fire on the *first*
     /// observed connection of an otherwise-mature image.
@@ -159,6 +165,7 @@ impl Baseline {
         let mut data = self.data.lock().unwrap();
         let profile = data.profiles.entry(image.to_string()).or_default();
         profile.samples += 1;
+        profile.traversal_windows += 1;
         if count > profile.max_file_traversal_in_window {
             profile.max_file_traversal_in_window = count;
         }
@@ -178,11 +185,21 @@ impl Baseline {
             .map_or(false, |p| p.samples >= LEARN_SAMPLES)
     }
 
-    pub fn typical_traversal_max(&self, image: &str) -> Option<usize> {
+    /// Learned peak distinct-directory count for an image, but only once
+    /// we've completed at least `LEARN_SAMPLES` *traversal* windows for it.
+    /// Spawn samples are deliberately excluded: starting a process says
+    /// nothing about how it walks the filesystem, so they must not grant
+    /// traversal trust (that was the "mature via spawns but ceiling 0"
+    /// gap that let an IDE keep firing at full score). `None` means "no
+    /// trustworthy ceiling yet" — the caller should score on absolutes.
+    pub fn traversal_ceiling(&self, image: &str) -> Option<usize> {
+        if self.excluded.contains(image) {
+            return None;
+        }
         let data = self.data.lock().unwrap();
-        data.profiles
-            .get(image)
-            .map(|p| p.max_file_traversal_in_window)
+        data.profiles.get(image).and_then(|p| {
+            (p.traversal_windows >= LEARN_SAMPLES).then_some(p.max_file_traversal_in_window)
+        })
     }
 
     /// `true` if we've ever observed this image make an outbound TCP
@@ -390,6 +407,31 @@ mod tests {
         }
         // Now marked chatty: even a brand-new prefix no longer fires.
         assert!(!b.observe_destination("svc.exe", "198.51.100.0/24"));
+    }
+
+    #[test]
+    fn spawns_alone_do_not_grant_traversal_ceiling() {
+        let b = Baseline::new();
+        // Mature via spawns only (like an IDE that forks many helpers)…
+        for _ in 0..LEARN_SAMPLES + 3 {
+            b.observe_process_start("code.exe", Some("explorer.exe"));
+        }
+        assert!(b.is_mature_for("code.exe"));
+        // …grants no traversal ceiling: we've watched zero windows.
+        assert_eq!(b.traversal_ceiling("code.exe"), None);
+    }
+
+    #[test]
+    fn traversal_ceiling_trusts_only_after_enough_windows() {
+        let b = Baseline::new();
+        for _ in 0..LEARN_SAMPLES - 1 {
+            b.observe_file_traversal_window("backup.exe", 40);
+        }
+        // One short of the threshold: still no trusted ceiling.
+        assert_eq!(b.traversal_ceiling("backup.exe"), None);
+        b.observe_file_traversal_window("backup.exe", 90);
+        // Now mature on the traversal axis → ceiling is the observed peak.
+        assert_eq!(b.traversal_ceiling("backup.exe"), Some(90));
     }
 
     #[test]

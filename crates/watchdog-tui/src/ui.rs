@@ -448,23 +448,23 @@ fn render_network(f: &mut Frame, app: &App) {
         root[0],
     );
 
-    // Main: two columns. Left = INTERFACES (top, small) + NEIGHBORS
-    // (bottom, big, selectable). Right = HOST DETAIL when a neighbor
+    // Main: two columns. Left = NEIGHBORS (top, big, selectable) +
+    // INTERFACES (bottom, small). Right = HOST DETAIL when a neighbor
     // is selected, else TCP CONNECTIONS.
     let cols = Layout::horizontal([
-        Constraint::Percentage(45),
-        Constraint::Percentage(55),
+        Constraint::Percentage(52),
+        Constraint::Percentage(48),
     ])
     .split(root[1]);
 
     let left = Layout::vertical([
-        Constraint::Percentage(45),
-        Constraint::Percentage(55),
+        Constraint::Percentage(60),
+        Constraint::Percentage(40),
     ])
     .split(cols[0]);
 
-    render_adapters_panel(f, left[0], snap_opt, app);
-    render_neighbors_panel(f, left[1], snap_opt, app);
+    render_neighbors_panel(f, left[0], snap_opt, app);
+    render_adapters_panel(f, left[1], snap_opt, app);
 
     if app.network_selected_ip.is_some() {
         render_host_detail(f, cols[1], snap_opt, app);
@@ -644,7 +644,7 @@ fn render_neighbors_panel(
 
     let header = Line::from(vec![
         Span::styled(format!("{:<22} ", "IP"),  Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
-        Span::styled(format!("{:<17} ", "MAC"), Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
+        Span::styled(format!("{:<19} ", "MAC"), Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
         Span::styled("HOSTNAME",                 Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
     ]);
 
@@ -685,7 +685,7 @@ fn render_neighbors_panel(
             ListItem::new(Line::from(vec![
                 Span::styled("● ", Style::new().fg(status_dot_color).add_modifier(Modifier::BOLD)),
                 Span::styled(format!("{:<20} ", n.ip.to_string()), Style::new().fg(FG_BRIGHT)),
-                Span::styled(format!("{:<17} ", mac_str),           Style::new().fg(FG)),
+                Span::styled(format!("{:<19} ", mac_str),           Style::new().fg(FG)),
                 Span::styled(host_text,                              Style::new().fg(host_color)),
             ]))
         })
@@ -930,7 +930,7 @@ fn render_connections_panel(
     let header = Line::from(vec![
         Span::styled(format!(" {:<8} ", "STATE"), Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
         Span::styled(format!("{:<23} ", "LOCAL"),  Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
-        Span::styled(format!("{:<23} ", "REMOTE"), Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
+        Span::styled(format!("{:<19} ", "REMOTE"), Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
         Span::styled(format!("{:<6} ",  "PID"),    Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
         Span::styled("PROCESS",                    Style::new().fg(DIM).add_modifier(Modifier::BOLD)),
     ]);
@@ -954,7 +954,7 @@ fn render_connections_panel(
         lines.push(Line::from(vec![
             Span::styled(format!(" {:<8} ", c.state.label()), Style::new().fg(state_color).add_modifier(Modifier::BOLD)),
             Span::styled(format!("{:<23} ", local_str),       Style::new().fg(FG)),
-            Span::styled(format!("{:<23} ", remote_str),      Style::new().fg(FG)),
+            Span::styled(format!("{:<19} ", remote_str),      Style::new().fg(FG)),
             Span::styled(format!("{:<6} ",  c.pid),           Style::new().fg(YELLOW)),
             Span::styled(image,                                Style::new().fg(FG_BRIGHT)),
         ]));
@@ -1018,14 +1018,14 @@ fn render_summary(f: &mut Frame, app: &App) {
     render_verdict(f, root[0], app);
 
     let body = Layout::horizontal([
-        Constraint::Percentage(50),
-        Constraint::Percentage(50),
+        Constraint::Percentage(55),
+        Constraint::Percentage(45),
     ])
     .split(root[1]);
 
     // Left column: DEFENSES (top), TODAY, INCIDENTS (takes the rest).
     let left = Layout::vertical([
-        Constraint::Length(10), // defenses (7 rows of checks + frame)
+        Constraint::Length(9),  // defenses (7 rows of checks + frame)
         Constraint::Length(4),  // today
         Constraint::Min(5),     // incidents
     ])
@@ -1338,6 +1338,8 @@ fn render_incidents(f: &mut Frame, area: Rect, app: &App) {
                 format!("{open_count} open"),
                 Style::new().fg(ORANGE).add_modifier(Modifier::BOLD),
             ),
+            Span::raw("   "),
+            Span::styled("↑↓", Style::new().fg(MAGENTA)),
         ])
     };
     let frame = BracketFrame::new().title(title);
@@ -1352,23 +1354,23 @@ fn render_incidents(f: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    // Build a flat Paragraph of incident cards, newest first. Each
-    // incident is a small visual block: severity dots + headline +
-    // body wrapped + ago.
+    // Build a flat Paragraph of every incident card, newest first, then
+    // apply a clamped vertical scroll so ↑/↓ can walk the full list even
+    // when it overflows the panel.
     let mut lines: Vec<Line<'static>> = Vec::new();
-    let mut consumed_rows: u16 = 0;
     for inc in app.incidents.iter_newest() {
-        // Stop pushing if we'd overflow the panel — we don't scroll in
-        // the summary view.
-        if consumed_rows + 4 > inner.height {
-            break;
-        }
         lines.extend(format_incident_card(inc));
         lines.push(Line::raw(""));
-        consumed_rows = consumed_rows.saturating_add(5);
     }
 
-    f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
+    let total_rows = lines.len() as u16;
+    let max_scroll = total_rows.saturating_sub(inner.height);
+    let scroll = app.incidents_scroll.min(max_scroll);
+
+    f.render_widget(
+        Paragraph::new(lines).wrap(Wrap { trim: false }).scroll((scroll, 0)),
+        inner,
+    );
 }
 
 fn format_incident_card(inc: &Incident) -> Vec<Line<'static>> {

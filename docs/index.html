@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Watchdog — behavioural security monitor for Windows</title>
+<meta name="description" content="A single-binary, user-mode behavioural security monitor for Windows. ETW sensors, 13 heuristic detectors, a runtime-learned baseline. No drivers, no signatures, no cloud." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='16' y='24' font-size='22' text-anchor='middle' fill='%2300e5ff' font-family='monospace'%3E%E2%96%A3%3C/text%3E%3C/svg%3E" />
+<meta property="og:title" content="Watchdog — behavioural security monitor for Windows" />
+<meta property="og:description" content="Single-binary, user-mode behavioural security monitor for Windows. ETW sensors, 13 heuristic detectors, a runtime-learned baseline. No drivers, no signatures, no cloud." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="web-styles.css" />
+</head>
+<body>
+
+<!-- ============== NAV ============== -->
+<nav class="nav">
+  <div class="wrap row">
+    <a class="brand" href="#top"><span class="glyph">▣</span> WATCHDOG <span class="ver">v0.1.0 · win-x64</span></a>
+    <div class="links">
+      <a href="#observe">observe</a>
+      <a href="#detect">detect</a>
+      <a href="#views">views</a>
+      <a href="#limits">limits</a>
+      <a href="#install">install</a>
+    </div>
+    <div class="actions">
+      <a class="btn" href="https://github.com/yagoid/watchdog"><span class="gl">⌥</span> GitHub</a>
+      <a class="btn primary" href="https://github.com/yagoid/watchdog/releases/latest"><span class="gl">▼</span> Download .exe</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============== HERO ============== -->
+<header class="hero" id="top">
+  <div class="wrap grid">
+    <div>
+      <span class="eyebrow"><span class="br">[</span> <span class="num">user-mode</span> · windows-only · no kernel driver <span class="br">]</span></span>
+      <h1>See what your machine is<br><span class="accent">actually doing</span><span class="cur"></span></h1>
+      <p class="lede">
+        Watchdog is a <b>single-binary behavioural security monitor</b> for Windows. It subscribes to
+        the kernel's own event streams, enriches every event with live process context, and scores
+        them through <b>thirteen heuristic detectors</b> against a baseline it <b>learns at runtime</b> — no
+        signature lists, no threat feeds, no cloud.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://github.com/yagoid/watchdog/releases/latest"><span class="gl">▼</span> Download watchdog.exe</a>
+        <a class="btn" href="https://github.com/yagoid/watchdog"><span class="gl">⌥</span> View source on GitHub</a>
+      </div>
+      <div class="meta-row">
+        <span class="it"><span class="dot"></span> ~10&nbsp;MB single binary</span>
+        <span class="it"><span class="x">·</span> &lt;1% CPU steady</span>
+        <span class="it"><span class="x">·</span> 30–80&nbsp;MB RAM</span>
+        <span class="it"><span class="x">·</span> 13 detectors</span>
+        <span class="it"><span class="x">·</span> written in Rust</span>
+      </div>
+    </div>
+
+    <!-- recreated Summary view -->
+    <div class="tui reveal" id="tui">
+      <div class="titlebar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="path">Administrator: Windows PowerShell — <b>watchdog.exe</b></span>
+      </div>
+      <div class="topbar">
+        <span class="brand">WATCHDOG</span>
+        <span class="tab on">LIVE</span>
+        <span class="tab" style="color:var(--green)">CALM</span>
+        <span class="status">no suspicious activity recorded</span>
+        <span class="up">up <b>00:14:22</b></span>
+      </div>
+      <div class="body">
+        <!-- DEFENSES -->
+        <div class="tpanel">
+          <span class="tlabel">DEFENSES</span>
+          <div class="kv">
+            <span class="k"><span class="led"></span>Windows Defender</span><span class="v on">running (MsMpEng)</span>
+            <span class="k"><span class="led"></span>Firewall · Domain</span><span class="v on">enabled</span>
+            <span class="k"><span class="led"></span>Firewall · Private</span><span class="v on">enabled</span>
+            <span class="k"><span class="led"></span>Firewall · Public</span><span class="v on">enabled</span>
+            <span class="k"><span class="led"></span>UAC</span><span class="v on">enabled</span>
+            <span class="k"><span class="led warn"></span>VPN</span><span class="v warn">installed · ProtonVPN</span>
+          </div>
+        </div>
+        <!-- NETWORK FOOTPRINT -->
+        <div class="tpanel">
+          <span class="tlabel">NETWORK FOOTPRINT</span>
+          <div class="kv">
+            <span class="k">Outbound connects</span><span class="v">142</span>
+            <span class="k">Unique remote IPs</span><span class="v">37</span>
+            <span class="k">Unique domains</span><span class="v">21</span>
+            <span class="k">DNS queries</span><span class="v">88</span>
+            <span class="k">Public / private</span><span class="v">61% public · 39% LAN</span>
+            <span class="k">Processes with net</span><span class="v">12</span>
+          </div>
+        </div>
+        <!-- TODAY -->
+        <div class="tpanel">
+          <span class="tlabel">TODAY</span>
+          <div class="line"><span class="hi">218</span> <span class="muted">processes started ·</span> <span class="hi">63</span> <span class="muted">distinct images</span></div>
+          <div class="line" style="margin-top:4px"><span class="cyan">9 INFO</span> <span class="muted">·</span> <span class="amber">3 WARN</span> <span class="muted">·</span> <span class="pink">1 CRIT</span></div>
+        </div>
+        <!-- HEALTH -->
+        <div class="tpanel">
+          <span class="tlabel">WATCHDOG HEALTH</span>
+          <div class="kv">
+            <span class="k">Events ingested</span><span class="v">38 204</span>
+            <span class="k">Drop rate</span><span class="v on">0 (0.00%)</span>
+            <span class="k">Baseline maturity</span><span class="v">100/138 (72%)</span>
+            <span class="k">Active detectors</span><span class="v">13</span>
+            <span class="k">Mode</span><span class="v" style="color:var(--cyan)">LIVE</span>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <span><span class="k">q</span> quit</span>
+        <span><span class="k">r</span> raw feed</span>
+        <span><span class="k">n</span> network</span>
+        <span><span class="k">o</span> offensive</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============== OBSERVE ============== -->
+<section class="sec" id="observe">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow"><span class="br">[</span> <span class="num">01</span> · how it observes <span class="br">]</span></span>
+      <h2>Six sensors, straight from the kernel.</h2>
+      <p>
+        Watchdog subscribes to five <span class="hi">Event Tracing for Windows</span> providers in a
+        single real-time session — the same plumbing Defender, EDR products and Process Monitor use.
+        A sixth synthetic sensor polls for new drive letters. Everything it reports comes from the
+        local system, observed through Windows' own instrumentation.
+      </p>
+    </div>
+
+    <div class="providers reveal">
+      <div class="prow">
+        <span class="idx">01</span>
+        <span class="pname">Kernel-Process</span>
+        <span class="pdesc">Every process start, stop, and image (DLL) load on the system.</span>
+      </div>
+      <div class="prow">
+        <span class="idx">02</span>
+        <span class="pname">Kernel-File</span>
+        <span class="pdesc">File create and write operations, filtered at the callback to skip high-volume system paths like <code>\Windows\</code> and <code>\Program Files\</code>. Writes feed the ransomware detectors; reads don't.</span>
+      </div>
+      <div class="prow">
+        <span class="idx">03</span>
+        <span class="pname">Kernel-Registry</span>
+        <span class="pdesc"><code>SetValueKey</code> operations — writes to registry values.</span>
+      </div>
+      <div class="prow">
+        <span class="idx">04</span>
+        <span class="pname">Kernel-Network</span>
+        <span class="pdesc">Outbound TCP connect operations, both IPv4 and IPv6.</span>
+      </div>
+      <div class="prow">
+        <span class="idx">05</span>
+        <span class="pname">DNS-Client</span>
+        <span class="pdesc">DNS queries via the Windows resolver. (Browsers using DNS-over-HTTPS bypass this — and stay invisible.)</span>
+      </div>
+      <div class="prow synthetic">
+        <span class="idx">+1</span>
+        <span class="pname">Drive sensor</span>
+        <span class="pdesc">Polls <code>QueryDosDevice</code> every 2s. A new drive letter (USB, SD, mapped share) emits a <code>RemovableDriveMounted</code> event into the same pipeline.</span>
+      </div>
+    </div>
+
+    <div style="margin-top:26px" class="reveal">
+      <div class="rule"><span style="height:1px;background:var(--line-dim);flex:1"></span><span class="node">ENRICHED IN FLIGHT</span><span style="height:1px;background:var(--line-dim);flex:1"></span></div>
+      <p style="text-align:center;color:var(--mid);max-width:80ch;margin:18px auto 0;font-size:13px">
+        Each event is resolved on the way through: process lookup from a live <span style="color:var(--cyan)">CreateToolhelp32Snapshot</span> table,
+        NT device paths canonicalised to <span style="color:var(--cyan)">C:\…</span>, command lines fished out via
+        <span style="color:var(--cyan)">NtQueryInformationProcess</span>, Authenticode checked with <span style="color:var(--cyan)">WinVerifyTrust</span>,
+        and System-attributed connects re-mapped to their real owning process.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============== DETECT ============== -->
+<section class="sec" id="detect" style="background:linear-gradient(180deg, transparent, rgba(0,229,255,0.018), transparent)">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow"><span class="br">[</span> <span class="num">02</span> · what it detects <span class="br">]</span></span>
+      <h2>Thirteen behavioural heuristics — no signature lists.</h2>
+      <p>
+        Each detector emits a sub-score in <span class="hi">[0.0, 1.0]</span>. The scorer combines them via
+        <span class="hi">1 − Π(1 − sᵢ)</span> so independent signals reinforce without saturating.
+        Severity buckets: <span style="color:var(--cyan)">Info ≥ 0.30</span> · <span style="color:var(--amber)">Warn ≥ 0.40</span> · <span style="color:var(--pink)">Crit ≥ 0.70</span>.
+      </p>
+    </div>
+
+    <div class="dgrid reveal">
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>LolbinSpawn <span class="tag">[ lolbin ]</span></h3>
+        <p>A signed-but-abusable Windows binary (mshta, rundll32, certutil, powershell…) running with malware-pattern command lines: <code>-EncodedCommand</code>, <code>iex(</code>, <code>DownloadString</code>, base64 blobs.</p>
+        <span class="sev">peaks at <span class="pill crit">CRIT</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>UnusualParentChild <span class="tag">[ chain ]</span></h3>
+        <p>Rarely-benign process chains: <code>word/excel → cmd/powershell</code>, <code>chrome → shell</code>, <code>lsass → anything</code>. Useful even without baseline — these chains are almost never legitimate.</p>
+        <span class="sev">peaks at <span class="pill warn">WARN</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>RegistryPersistence <span class="tag">[ persist ]</span></h3>
+        <p>Writes to 14 well-known autostart locations: <code>Run</code>, <code>RunOnce</code>, Image File Execution Options, <code>Winlogon\Shell</code>, <code>AppInit_DLLs</code>, service ImagePath, Active Setup…</p>
+        <span class="sev">peaks at <span class="pill warn">WARN</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>RapidFileTraversal <span class="tag">[ ransomware ]</span></h3>
+        <p>A process touching ≥25 distinct directories in 10s — the canonical ransomware / bulk-exfil fingerprint. Baseline-aware: legitimate I/O-heavy processes get suppressed after familiarisation.</p>
+        <span class="sev">peaks at <span class="pill crit">CRIT</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>EntropyBurst <span class="tag">[ ransomware ]</span></h3>
+        <p>A process <b>writing</b> a burst of high-entropy files (Shannon ≥ 7.8 bits/byte, sampled from the first 4&nbsp;KiB) — encryption caught in the act. Already-compressed formats (zip, jpg, office, pdf…) are denylisted to avoid false hits.</p>
+        <span class="sev">peaks at <span class="pill crit">CRIT</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>UnsignedFromUserPath <span class="tag">[ authenticode ]</span></h3>
+        <p>A binary running from a user-writable path (<code>%TEMP%</code>, <code>%APPDATA%</code>, Downloads, Desktop, ADS) with no valid Authenticode signature, verified through <code>WinVerifyTrust</code>. Highest-yield for downloaded malware.</p>
+        <span class="sev">peaks at <span class="pill warn">WARN</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>NewNetworkEgress <span class="tag">[ phone-home ]</span></h3>
+        <p>A program seen running many times before — but never connecting out — just made its first outbound TCP connection. Suggests a previously-silent process is now phoning home.</p>
+        <span class="sev">peaks at <span class="pill warn">WARN</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>RareDestination <span class="tag">[ c2-callback ]</span></h3>
+        <p>A mature, focused program connecting to an <b>external /24 (v4) or /48 (v6) prefix it has never used</b>. Complements NewNetworkEgress; chatty clients (&gt;32 prefixes) and LAN/loopback are auto-excluded.</p>
+        <span class="sev">peaks at <span class="pill warn">WARN</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>DnsAnomaly <span class="tag">[ dga ]</span></h3>
+        <p>Multi-evidence: ≥2 of {label entropy &gt; 3.5 bits/char, abused TLD (.tk .xyz .top .icu…), label ≥ 40 chars}. Single hits alone are too noisy — CDNs use random-looking subdomains too.</p>
+        <span class="sev">peaks at <span class="pill crit">CRIT</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>UsbExfilHint <span class="tag">[ exfil ]</span></h3>
+        <p>Temporal correlation: a removable drive letter just appeared, and within 5 minutes a process writes ≥10 distinct files to that drive. Two domains, one inference.</p>
+        <span class="sev">peaks at <span class="pill crit">CRIT</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>ProcessImpersonation <span class="tag">[ masquerade ]</span></h3>
+        <p>A critical system image (<code>svchost</code>, <code>lsass</code>, <code>services</code>, <code>csrss</code>…) launched from outside its expected directory, or an <code>svchost</code> not parented by <code>services.exe</code>. Classic process-masquerading move.</p>
+        <span class="sev">peaks at <span class="pill crit">CRIT</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>ImageLoadFromUnusualPath <span class="tag">[ dll-sideload ]</span></h3>
+        <p>An unsigned or untrusted module (DLL) loaded from a user-writable path — DLL sideloading / search-order hijacking. Verified with the same <code>WinVerifyTrust</code> cache; the process's own primary image is skipped.</p>
+        <span class="sev">peaks at <span class="pill warn">WARN</span></span>
+      </div>
+      <div class="panel dcard hoverable">
+        <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+        <h3>OffHoursActivity <span class="tag">[ off-hours ]</span></h3>
+        <p>An interactive process launched during an hour this host is normally idle, judged from a learned hour-of-day profile (≥5 days observed). On its own it's just an amplifier — it nudges other signals up.</p>
+        <span class="sev">peaks at <span class="pill info">INFO</span></span>
+      </div>
+    </div>
+
+    <div class="panel hoverable reveal" style="margin-top:24px;padding:24px 24px 22px">
+      <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+      <span class="label">RUNTIME BASELINE <span class="dot">·</span><span class="mn">adaptive</span></span>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:6px">
+        <p style="margin:0;color:var(--fg);font-size:13.5px;line-height:1.6">
+          Watchdog keeps a per-image profile that accumulates as it runs — observed parents, children,
+          peak file-traversal counts, network destinations, whether the image ever connected out. After <b style="color:var(--hi)">five samples</b>
+          an image is <span style="color:var(--green)">mature</span>, and baseline-aware detectors trust the learned ceiling.
+        </p>
+        <p style="margin:0;color:var(--mid);font-size:13px;line-height:1.6">
+          Persists to <span style="color:var(--cyan)">%ProgramData%\Watchdog\baseline.bin</span> every 5 minutes, so the
+          learning ramp happens once per machine. <b style="color:var(--amber)">LOLBins are excluded by design</b> — an
+          attacker can't train the system to ignore powershell by repeating the same malicious act.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== VIEWS ============== -->
+<section class="sec" id="views">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow"><span class="br">[</span> <span class="num">03</span> · four views <span class="br">]</span></span>
+      <h2>One key away from any altitude.</h2>
+      <p>The TUI defaults to a consumer-facing summary. Three deeper pages are one keystroke away from anywhere — <span class="hi">r</span>aw, <span class="hi">n</span>etwork, <span class="hi">o</span>ffensive.</p>
+    </div>
+
+    <div class="views">
+      <!-- Summary -->
+      <div class="viewrow reveal">
+        <div class="vtext">
+          <span class="vnum">VIEW 01 — default</span>
+          <h3>Summary <span class="key">default</span></h3>
+          <p>Six panels in two columns, built so a non-analyst can answer "is something bad happening?" in five seconds.</p>
+          <ul>
+            <li><b>Verdict bar</b> — CALM / REVIEW / THREAT with time-since-last-alert.</li>
+            <li><b>Defenses</b> — Defender, firewall per-profile, UAC, VPN status.</li>
+            <li><b>Incidents queue</b> — events coalesced into plain-language cards.</li>
+            <li><b>Network footprint</b> + <b>health</b> — counters, drop rate, baseline maturity.</li>
+          </ul>
+        </div>
+        <div class="panel hoverable">
+          <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+          <span class="label">INCIDENTS <span class="dot">·</span><span class="mn">summary</span></span>
+          <div class="vmock" style="margin-top:6px">
+            <div class="row"><span class="lvl-CRIT">●</span> <span class="tgt">Inventor.exe</span> <span class="ts">made first outbound connection</span></div>
+            <div style="color:var(--mid);padding:2px 0 8px 16px">→ 104.83.79.25:80 · NewNetworkEgress · score 0.55</div>
+            <div class="row"><span class="lvl-WARN">●</span> <span class="tgt">setup_x64.exe</span> <span class="ts">unsigned, from Downloads</span></div>
+            <div style="color:var(--mid);padding:2px 0 8px 16px">→ %USERPROFILE%\Downloads · score 0.65</div>
+            <div class="row"><span class="lvl-INFO">●</span> <span class="tgt">svchost.exe</span> <span class="ts">registry autostart write</span></div>
+            <div style="color:var(--mid);padding:2px 0 0 16px">→ Run\OneDriveSetup · score 0.33</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Raw -->
+      <div class="viewrow flip reveal">
+        <div class="vtext">
+          <span class="vnum">VIEW 02 — analyst feed</span>
+          <h3>Raw <span class="key">r</span></h3>
+          <p>Time-ordered stream of every scored event. The 50,000-event buffer evicts by <b>score-biased</b> rule — a Defender scan can't wipe a WARN powershell from twenty minutes ago.</p>
+          <ul>
+            <li><b>Details pane</b> — full process info, parent, payload, and a "Why" block.</li>
+            <li><b>Filters</b> — text/regex, source (PROC/FILE/REG/NET/DNS/USB), min-score.</li>
+            <li><b>Pause</b> freezes the view without dropping events; <b>export</b> to JSONL.</li>
+          </ul>
+        </div>
+        <div class="panel hoverable">
+          <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+          <span class="label">FEED <span class="dot">·</span><span class="mn">raw</span></span>
+          <div class="vmock" style="margin-top:6px">
+            <div class="row"><span class="bar INFO"></span><span class="ts">22:25:04</span> <span class="lvl-INFO">INFO 0.35</span> <span class="proc">clinfo.exe</span> <span class="tgt">CompileSource.bc</span></div>
+            <div class="row sel"><span class="bar WARN"></span><span class="ts">22:25:05</span> <span class="lvl-WARN">WARN 0.55</span> <span class="proc">radeonsoftware</span> <span class="tgt">104.83.79.25:80</span></div>
+            <div class="row"><span class="bar CRIT"></span><span class="ts">22:25:06</span> <span class="lvl-CRIT">CRIT 0.71</span> <span class="proc">radeonsoftware</span> <span class="tgt">msys.bat</span></div>
+            <div class="row"><span class="bar CRIT"></span><span class="ts">22:25:08</span> <span class="lvl-CRIT">CRIT 0.85</span> <span class="proc">radeonsoftware</span> <span class="tgt">Fallout76.exe</span></div>
+            <div class="row"><span class="bar CRIT"></span><span class="ts">22:25:08</span> <span class="lvl-CRIT">CRIT 0.85</span> <span class="proc">radeonsoftware</span> <span class="tgt">Revit.exe</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Network -->
+      <div class="viewrow reveal">
+        <div class="vtext">
+          <span class="vnum">VIEW 03 — network inventory</span>
+          <h3>Network <span class="key">n</span></h3>
+          <p>Read-only inventory of everything on the wire: interfaces, neighbors, live TCP table, and a per-host inspector.</p>
+          <ul>
+            <li><b>Interfaces</b> — adapters, MACs, IPv4/IPv6, gateways, DNS, link speed.</li>
+            <li><b>Neighbors</b> — live ARP/NDP cache with reverse-DNS + OUI vendor names.</li>
+            <li><b>TCP connections</b> — full table with state, endpoints, owning process.</li>
+            <li><b><span style="color:var(--cyan)">d</span></b> sweeps the subnet via ICMP from 32 threads · per-host port probe.</li>
+          </ul>
+        </div>
+        <div class="panel hoverable">
+          <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+          <span class="label">NEIGHBORS <span class="dot">·</span><span class="mn">arp/ndp</span></span>
+          <div class="vmock" style="margin-top:6px">
+            <div class="row"><span class="green">●</span> <span class="hi">192.168.1.1</span> <span class="ts">30:b1:b5:07</span> <span class="proc">liveboxplus</span></div>
+            <div class="row"><span class="green">●</span> <span class="hi">192.168.1.19</span> <span class="ts">e4:5f:01:1e</span> <span class="pink">Raspberry Pi</span></div>
+            <div class="row"><span class="green">●</span> <span class="hi">192.168.1.98</span> <span class="ts">d0:c5:d3:05</span> <span class="proc">Roomba-3168</span></div>
+            <div class="row"><span class="green">●</span> <span class="hi">192.168.1.109</span> <span class="ts">00:f9:66:78</span> <span class="proc">IPCAM.home</span></div>
+            <div class="row"><span class="muted">○</span> <span class="hi">192.168.1.255</span> <span class="ts">ff:ff:ff:ff</span> <span class="amber">(broadcast)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Offensive -->
+      <div class="viewrow flip reveal">
+        <div class="vtext">
+          <span class="vnum">VIEW 04 — lab use</span>
+          <h3>Offensive <span class="key">o</span></h3>
+          <p>Currently one read-only tool: a WiFi scan from the WLAN API's cached results. No active attack code — strictly educational.</p>
+          <ul>
+            <li><b>SSID list</b> — signal %, dBm, bars, encryption (OPEN/WEP/WPA2/WPA3).</li>
+            <li><b>OPEN and WEP</b> highlighted red; connected + saved profiles flagged.</li>
+            <li><b>Detail pane</b> — what the encryption means, and which pentest techniques target it.</li>
+          </ul>
+        </div>
+        <div class="panel hoverable">
+          <span class="c tl">┏</span><span class="c tr">┓</span><span class="c bl">┗</span><span class="c br2">┛</span>
+          <span class="label">WIFI <span class="dot">·</span><span class="mn">scan</span></span>
+          <div class="vmock" style="margin-top:6px">
+            <div class="row"><span class="green">▮▮▮▮</span> <span class="hi">MOVISTAR_A4F2</span> <span class="cyan">WPA2</span> <span class="ts">-48 dBm</span></div>
+            <div class="row"><span class="amber">▮▮▮▯</span> <span class="hi">vodafone5G</span> <span class="cyan">WPA3</span> <span class="ts">-61 dBm</span></div>
+            <div class="row"><span class="amber">▮▮▯▯</span> <span class="hi">Orange-Home</span> <span class="cyan">WPA2</span> <span class="ts">-67 dBm</span></div>
+            <div class="row"><span class="pink">▮▯▯▯</span> <span class="hi">FreeWiFi_Cafe</span> <span class="pink">OPEN</span> <span class="ts">-78 dBm</span></div>
+            <div class="row"><span class="pink">▮▯▯▯</span> <span class="hi">linksys</span> <span class="pink">WEP</span> <span class="ts">-81 dBm</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== LIMITS ============== -->
+<section class="sec" id="limits" style="background:linear-gradient(180deg, transparent, rgba(255,53,179,0.02), transparent)">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow"><span class="br">[</span> <span class="num">04</span> · known limitations <span class="br">]</span></span>
+      <h2>What it can't see — stated plainly.</h2>
+      <p>A monitor that overstates its coverage is worse than useless. Here is exactly where Watchdog is blind.</p>
+    </div>
+    <div class="lims reveal">
+      <div class="lim"><span class="gl">▲</span><div><div class="t">Windows-only</div><div class="d">ETW is the entire foundation. There is no Linux or macOS build.</div></div></div>
+      <div class="lim"><span class="gl">▲</span><div><div class="t">Requires Administrator</div><div class="d">Real-time ETW sessions, reading other processes' command lines, and several API calls all fail with ACCESS_DENIED otherwise.</div></div></div>
+      <div class="lim"><span class="gl">▲</span><div><div class="t">Browser DNS-over-HTTPS is invisible</div><div class="d">Chrome / Edge / Brave bypass the Windows resolver, so DnsAnomaly only sees lookups through the system DNS client.</div></div></div>
+      <div class="lim"><span class="gl">▲</span><div><div class="t">No driver-level visibility</div><div class="d">Well-hidden process / thread injection needs a Protected Process Light — out of scope for an unsigned user-mode binary.</div></div></div>
+      <div class="lim"><span class="gl">▲</span><div><div class="t">Signatures are file-only, no catalog</div><div class="d">WinVerifyTrust checks embedded signatures, not the system catalog — a catalog-signed binary copied out of \Windows\ reads as unsigned.</div></div></div>
+      <div class="lim"><span class="gl">▲</span><div><div class="t">Defender real-time state isn't directly readable</div><div class="d">Tamper protection blocks it — we use MsMpEng.exe presence as a proxy.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== INSTALL ============== -->
+<section class="sec" id="install">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow"><span class="br">[</span> <span class="num">05</span> · install &amp; run <span class="br">]</span></span>
+      <h2>One binary. Run it elevated.</h2>
+      <p>No installer, no driver, no kernel component. Download the single <span class="hi">watchdog.exe</span>, open an elevated terminal, and run it — or install it via Scoop. An optional background <span class="hi">service mode</span> is built in for always-on, headless use.</p>
+    </div>
+
+    <div class="install">
+      <div class="reqs reveal">
+        <div class="req"><span class="gl">▣</span><div><div class="rt">Windows 10 / 11 · x64</div><div class="rd">ETW manifested providers are required; older builds untested.</div></div></div>
+        <div class="req"><span class="gl">▣</span><div><div class="rt">Administrator privileges</div><div class="rd">The binary ships a <code>requireAdministrator</code> manifest, so Windows raises the UAC prompt on launch automatically.</div></div></div>
+        <div class="req"><span class="gl">▣</span><div><div class="rt">~10 MB free disk · ~80 MB RAM</div><div class="rd">No runtime, no .NET, no third-party native dependencies.</div></div></div>
+        <div class="req"><span class="gl">▣</span><div><div class="rt">Unsigned — SmartScreen will warn</div><div class="rd">No code-signing budget yet, so the first run shows "unknown publisher". Verify the source on GitHub, then "Run anyway".</div></div></div>
+        <div class="req"><span class="gl">▣</span><div><div class="rt">Optional <code>install-service</code></div><div class="rd">Registers a headless LocalSystem service that sinks incidents to rotating JSONL + the Event Log. The default launch is still the interactive TUI.</div></div></div>
+        <div style="display:flex;gap:12px;margin-top:22px;flex-wrap:wrap">
+          <a class="btn primary" href="https://github.com/yagoid/watchdog/releases/latest"><span class="gl">▼</span> watchdog.exe · win-x64</a>
+          <a class="btn" href="https://github.com/yagoid/watchdog#build-from-source"><span class="gl">⌥</span> Build from source</a>
+        </div>
+      </div>
+
+      <div class="term reveal">
+        <div class="bar"><i></i><i></i><i></i> &nbsp;Administrator: Windows PowerShell</div>
+        <div class="body">
+          <div><span class="pr">PS C:\Tools&gt;</span> <span class="cmd">scoop bucket add watchdog https://github.com/yagoid/watchdog</span></div>
+          <div><span class="pr">PS C:\Tools&gt;</span> <span class="cmd">scoop install watchdog</span></div>
+          <div class="out">  Installing 'watchdog' (0.1.0) …</div>
+          <div class="ok">  ✓ 'watchdog' was installed successfully!</div>
+          <div style="margin-top:8px"><span class="pr">PS C:\Tools&gt;</span> <span class="cmd">Start-Process watchdog -Verb RunAs</span></div>
+          <div class="out">  Watchdog v0.1.0 · win-x64 · elevated ✓</div>
+          <div class="out">  Opening ETW session <span class="cy">Watchdog-RT</span> …</div>
+          <div class="out">  5 providers subscribed · drive sensor armed</div>
+          <div class="ok">  ✓ live. ingesting events.</div>
+          <div class="out" style="margin-top:8px">  baseline: <span class="cy">%ProgramData%\Watchdog\baseline.bin</span></div>
+          <div class="out">  maturity 0/138 — learning what's normal…</div>
+          <div style="margin-top:8px"><span class="pr">PS C:\Tools&gt;</span> <span class="cur"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== FOOTER ============== -->
+<footer class="foot" id="repo">
+  <div class="wrap">
+    <div class="grid">
+      <div>
+        <div class="brand"><span class="glyph">▣</span> WATCHDOG</div>
+        <p>A single-binary, user-mode behavioural security monitor for Windows. Observes through the kernel's own instrumentation. No drivers, no signature databases, no cloud.</p>
+        <div style="display:flex;gap:12px;margin-top:18px">
+          <a class="btn" href="https://github.com/yagoid/watchdog"><span class="gl">⌥</span> GitHub</a>
+          <a class="btn primary" href="https://github.com/yagoid/watchdog/releases/latest"><span class="gl">▼</span> Download</a>
+        </div>
+      </div>
+      <div class="col">
+        <h4>Operational profile</h4>
+        <div class="kv"><span class="k">Binary size</span><span class="v">~10 MB</span></div>
+        <div class="kv"><span class="k">Memory</span><span class="v">30–80 MB</span></div>
+        <div class="kv"><span class="k">CPU steady</span><span class="v">&lt; 1%</span></div>
+        <div class="kv"><span class="k">Detectors</span><span class="v">13</span></div>
+        <div class="kv"><span class="k">Language</span><span class="v">Rust · LTO</span></div>
+      </div>
+      <div class="col">
+        <h4>Built on</h4>
+        <a href="#observe">Event Tracing for Windows</a>
+        <a href="#detect">WinVerifyTrust · Authenticode</a>
+        <a href="#views">GetExtendedTcpTable</a>
+        <a href="#views">GetIpNetTable2 · ICMP</a>
+        <a href="#views">WLAN API · WlanEnumInterfaces</a>
+      </div>
+    </div>
+    <div class="legal">
+      <span>© 2026 Watchdog · dual-licensed MIT OR Apache-2.0 · built for analysts who like to read the source.</span>
+      <span class="warn">⚠ Defensive monitoring tool. Offensive view is read-only and educational.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ---- scroll reveal ----
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
