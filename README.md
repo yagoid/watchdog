@@ -12,7 +12,7 @@ Real-time behavioural security monitor for Windows. It watches your machine thro
 
 - **Observes** process starts/stops, image loads, file creates, registry writes, outbound TCP connections, DNS queries (via the Windows resolver) and removable-drive mounts — all through five real-time **ETW** providers plus a synthetic drive watcher.
 - **Enriches** every event in flight: live process table, Authenticode signature, real command line, device-path → `C:\` canonicalisation, and socket → owning-PID resolution.
-- **Detects** with eight behavioural heuristics (see below), combined into a single score; only events above a threshold surface, bucketed `INFO` / `WARN` / `CRIT`.
+- **Detects** with thirteen behavioural heuristics (see below), combined into a single score; only events above a threshold surface, bucketed `INFO` / `WARN` / `CRIT`.
 - **Learns** a per-binary baseline at runtime (usual parents/children, file-I/O ceilings, whether it ever phones home) so normal activity stops alerting after a short familiarisation period. LOLBins are excluded so an attacker can't "train" the tool to ignore them.
 - **Shows** it all in a four-view TUI, or **sinks** it to logs when run as a service.
 
